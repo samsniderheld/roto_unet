@@ -136,9 +136,9 @@ def add_layers_to_unet(model, new_dim=512):
     p1 = MaxPooling2D((2, 2))(c1)
     p1 = Conv2D(1, (1, 1), activation='relu')(p1)
 
-    bottle_neck_condition_input = [tf.image.resize(condition_input,[resize_dim,resize_dim]),
-          tf.image.resize(condition_input_2,[resize_dim,resize_dim])]
-    x = model([p1,bottle_neck_condition_input])
+    bottle_neck_condition_input = tf.image.resize(condition_input,[resize_dim,resize_dim])
+    bottle_neck_condition_input_2 = tf.image.resize(condition_input_2,[resize_dim,resize_dim])
+    x = model([p1,bottle_neck_condition_input,bottle_neck_condition_input_2])
 
     c2 = self_attention(x)
 
@@ -149,7 +149,7 @@ def add_layers_to_unet(model, new_dim=512):
     outputs = Conv2D(1, (1, 1), activation='tanh')(c3)
 
     # Construct the updated model
-    updated_model = tf.keras.Model(inputs=[inputs,condition_input], outputs=[outputs])
+    updated_model = tf.keras.Model(inputs=[inputs,condition_input,condition_input_2], outputs=[outputs])
 
 
     return updated_model
