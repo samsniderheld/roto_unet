@@ -106,7 +106,6 @@ def create_generator(input_shape):
     return model
 
 
-# TODO: fix this bug and add depth conditional layer
 def add_layers_to_unet(model, new_dim=512):
     """
     Adds additional encoder and decoder layers to a U-Net model to accommodate for an increased resolution.
@@ -118,10 +117,9 @@ def add_layers_to_unet(model, new_dim=512):
     Returns:
     - updated_model (Model): The updated U-Net model with additional layers.
     """
-
     layers = model.layers
     
-    model = tf.keras.Model(inputs=[layers[3].input,layers[1].input,layers[2].input], outputs=layers[-1].output)
+    model = tf.keras.Model(inputs=[layers[4].input,layers[1].input,layers[2].input], outputs=layers[-1].output)
 
 
     inputs = Input((new_dim,new_dim,1))

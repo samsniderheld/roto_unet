@@ -84,7 +84,7 @@ elif args.dims == 512:
 elif args.dims == 1024:
     generator = create_generator((256, 256, 1))
     generator = add_layers_to_unet(generator)
-    generator.load_weights("{args.saved_models}/512")
+    generator.load_weights(f"{args.saved_models}/512")
     generator = add_layers_to_unet(generator, 1024)
     generator.compile(optimizer="adam", loss=perceptual_loss)
     generator.summary()
