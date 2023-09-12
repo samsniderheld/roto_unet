@@ -76,16 +76,14 @@ elif args.dims == 1024:
 
 inputs  = sorted(glob.glob(args.input_dir))
 
-
 for i in tqdm(range(0,len(inputs))):
 
     sample = cv2.imread(inputs[i])
     lines = create_hed(sample,512,512)
-    depth = create_midas(sample,512,512)
+    depth = create_midas(sample)
 
     sample = cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)
     lines = cv2.cvtColor(lines, cv2.COLOR_BGR2GRAY)
-    depth = cv2.cvtColor(depth, cv2.COLOR_BGR2GRAY)
 
     sample = sample/255
     sample = cv2.resize(sample,(args.dims,args.dims))
