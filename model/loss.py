@@ -14,6 +14,22 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 
 
+# # Load a pre-trained VGG16 model and set up as feature extractors
+# def get_vgg_models(perception_layers):
+
+#     # Ensure the VGG model is not trainable
+#     for layer in vgg.layers:
+#         layer.trainable = False
+
+#     vgg = VGG16(weights='imagenet', include_top=False)
+
+#     models = []
+
+#     for p_layer in perception_layers:
+#         models.append(Model(inputs=vgg.inputs, outputs=vgg.get_layer(p_layer).output))
+
+#     return models
+
 # Load a pre-trained VGG16 model and set up as feature extractors
 vgg = VGG16(weights='imagenet', include_top=False)
 vgg_1 = Model(inputs=vgg.inputs, outputs=vgg.get_layer('block3_conv3').output)

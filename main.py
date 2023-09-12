@@ -52,6 +52,14 @@ def parse_args():
         help='The dimensions to train at'
     )
     parser.add_argument(
+        '--use_depth', action='store_true',
+        help='enable depth map condition'
+    )
+    parser.add_argument(
+        '--perceptual_loss_layers', type=str, default=['block3_conv3', 'block2_conv2'],
+        help='The dimensions to train at'
+    )
+    parser.add_argument(
         '--epochs', type=int, default=10,
         help='The number of epochs to train for'
     )
@@ -68,13 +76,13 @@ args = parse_args()
 os.makedirs(args.saved_models, exist_ok=True)
 
 if args.dims == 256:
-    generator = create_generator((256, 256, 1))
+    generator = create_generator((256, 256, 1),args.use_depth)
     generator.compile(optimizer="adam", loss=perceptual_loss)
     generator.summary()
     data_gen = DataGenerator(args.data_dir, batch_size=32, dims=256)
 
 elif args.dims == 512:
-    generator = create_generator((256, 256, 1))
+    generator = create_generator((256, 256, 1),args.use_depth)
     generator.load_weights(f"{args.saved_models}/256")
     generator = add_layers_to_unet(generator)
     generator.compile(optimizer="adam", loss=perceptual_loss)
@@ -82,7 +90,7 @@ elif args.dims == 512:
     data_gen = DataGenerator(args.data_dir, batch_size=16, dims=512)
 
 elif args.dims == 1024:
-    generator = create_generator((256, 256, 1))
+    generator = create_generator((256, 256, 1),args.use_depth)
     generator = add_layers_to_unet(generator)
     generator.load_weights(f"{args.saved_models}/512")
     generator = add_layers_to_unet(generator, 1024)

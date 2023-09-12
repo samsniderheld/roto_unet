@@ -49,7 +49,7 @@ def self_attention(input, name=None):
     return out
 
 
-def create_generator(input_shape):
+def create_generator(input_shape, use_depth = False):
     """
     Creates a U-Net model augmented with self-attention mechanisms.
 
@@ -61,10 +61,13 @@ def create_generator(input_shape):
     """
     inputs = Input(input_shape, name="image")
     condition_input = Input(input_shape, name="condition_image")
-    condition_input_2 = Input(input_shape, name="condition_image_2")
 
-    x = Add()([inputs, condition_input, condition_input_2])
-    
+    if(use_depth):
+        condition_input_2 = Input(input_shape, name="condition_image_2")
+        x = Add()([inputs, condition_input, condition_input_2])
+    else:
+        x = Add()([inputs, condition_input])
+
     # Downsampling path
     c1 = conv2d_block(x, 32)
     p1 = MaxPooling2D((2, 2))(c1)
@@ -83,8 +86,12 @@ def create_generator(input_shape):
 
 
     bottle_neck_input = tf.image.resize(condition_input,[64,64])
-    bottle_neck_input_2 = tf.image.resize(condition_input_2,[64,64])
-    bottle_neck = Add()([c3,bottle_neck_input,bottle_neck_input_2])
+
+    if(use_depth):
+        bottle_neck_input_2 = tf.image.resize(condition_input_2,[64,64])
+        bottle_neck = Add()([c3,bottle_neck_input,bottle_neck_input_2])
+    else:
+        bottle_neck = Add()([c3,bottle_neck_input])
 
     # Upsampling path
     u4 = UpSampling2D((2, 2),name="bottom_half")(bottle_neck)
@@ -101,12 +108,15 @@ def create_generator(input_shape):
 
     outputs = Conv2D(1, (1, 1), activation='sigmoid')(c5)
 
-    model = tf.keras.Model(inputs=[inputs,condition_input,condition_input_2], outputs=[outputs])
+    if(use_depth):
+        model = tf.keras.Model(inputs=[inputs,condition_input,condition_input_2], outputs=[outputs])
+    else:
+        model = tf.keras.Model(inputs=[inputs,condition_input], outputs=[outputs])
 
     return model
 
 
-def add_layers_to_unet(model, new_dim=512):
+def add_layers_to_unet(model, new_dim=512,use_depth = False):
     """
     Adds additional encoder and decoder layers to a U-Net model to accommodate for an increased resolution.
 
@@ -118,25 +128,34 @@ def add_layers_to_unet(model, new_dim=512):
     - updated_model (Model): The updated U-Net model with additional layers.
     """
     layers = model.layers
+
+    if(use_depth):
+        model = tf.keras.Model(inputs=[layers[4].input,layers[1].input,layers[2].input], outputs=layers[-1].output)
+        inputs = Input((new_dim,new_dim,1))
+        condition_input = Input((new_dim,new_dim,1))      
+        condition_input_2 = Input((new_dim,new_dim,1))
+        resize_dim = int(new_dim/2)
+        added_inputs = Add()([inputs,condition_input, condition_input_2])
     
-    model = tf.keras.Model(inputs=[layers[4].input,layers[1].input,layers[2].input], outputs=layers[-1].output)
+    else:
+        model = tf.keras.Model(inputs=[layers[3].input,layers[1].input], outputs=layers[-1].output)
+        inputs = Input((new_dim,new_dim,1))
+        condition_input = Input((new_dim,new_dim,1))
+        resize_dim = int(new_dim/2)
+        added_inputs = Add()([inputs,condition_input])
 
-
-    inputs = Input((new_dim,new_dim,1))
-    condition_input = Input((new_dim,new_dim,1))
-    condition_input_2 = Input((new_dim,new_dim,1))
-
-    resize_dim = int(new_dim/2)
-
-    added_inputs = Add()([inputs,condition_input, condition_input_2])
 
     c1 = conv2d_block(added_inputs, 16)
     p1 = MaxPooling2D((2, 2))(c1)
     p1 = Conv2D(1, (1, 1), activation='relu')(p1)
 
-    bottle_neck_condition_input = tf.image.resize(condition_input,[resize_dim,resize_dim])
-    bottle_neck_condition_input_2 = tf.image.resize(condition_input_2,[resize_dim,resize_dim])
-    x = model([p1,bottle_neck_condition_input,bottle_neck_condition_input_2])
+    if(use_depth):
+        bottle_neck_condition_input = tf.image.resize(condition_input,[resize_dim,resize_dim])
+        bottle_neck_condition_input_2 = tf.image.resize(condition_input_2,[resize_dim,resize_dim])
+        x = model([p1,bottle_neck_condition_input,bottle_neck_condition_input_2])
+    else:
+        bottle_neck_condition_input = tf.image.resize(condition_input,[resize_dim,resize_dim])
+        x = model([p1,bottle_neck_condition_input])
 
     c2 = self_attention(x)
 
@@ -147,7 +166,11 @@ def add_layers_to_unet(model, new_dim=512):
     outputs = Conv2D(1, (1, 1), activation='tanh')(c3)
 
     # Construct the updated model
-    updated_model = tf.keras.Model(inputs=[inputs,condition_input,condition_input_2], outputs=[outputs])
+
+    if(use_depth):
+        updated_model = tf.keras.Model(inputs=[inputs,condition_input,condition_input_2], outputs=[outputs])
+    else:
+        updated_model = tf.keras.Model(inputs=[inputs,condition_input], outputs=[outputs])
 
 
     return updated_model
