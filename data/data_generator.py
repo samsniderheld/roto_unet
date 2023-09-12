@@ -23,8 +23,9 @@ import cv2
 class DataGenerator(tf.keras.utils.Sequence):
     """Generates data for Keras"""
     
-    def __init__(self, dir='dataset', batch_size=4, dims=1024):
+    def __init__(self, dir='dataset', batch_size=4, dims=1024, use_depth = False):
         """Initialization"""
+        self.use_depth = use_depth
         self.input_dir = os.path.join(dir,'train_A/*.jpg')
         self.lines_dir = os.path.join(dir,'lines/*.jpg')
         self.depth_dir = os.path.join(dir,'depth/*.jpg')
@@ -58,13 +59,15 @@ class DataGenerator(tf.keras.utils.Sequence):
         # Define batch file lists
         input_files = self.inputs[idx*self.batch_size:idx*self.batch_size+self.batch_size]
         lines_files = self.lines[idx*self.batch_size:idx*self.batch_size+self.batch_size]
-        depth_files = self.depth[idx*self.batch_size:idx*self.batch_size+self.batch_size]
         output_files = self.outputs[idx*self.batch_size:idx*self.batch_size+self.batch_size]
+        if(self.use_depth):
+            depth_files = self.depth[idx*self.batch_size:idx*self.batch_size+self.batch_size]
 
         # Initialize data arrays
         X = np.empty((self.batch_size, self.dims, self.dims))
         L = np.empty((self.batch_size, self.dims, self.dims))
-        D = np.empty((self.batch_size, self.dims, self.dims))
+        if(self.use_depth):
+            D = np.empty((self.batch_size, self.dims, self.dims))
         Y = np.empty((self.batch_size, self.dims, self.dims))
 
         # Load and preprocess data
@@ -76,10 +79,11 @@ class DataGenerator(tf.keras.utils.Sequence):
             lines = cv2.imread(lines_files[i])
             lines = cv2.resize(lines, (self.dims, self.dims))
             L[i] = lines[:, :, 0] / 255
-
-            depth = cv2.imread(depth_files[i])
-            depth = cv2.resize(depth, (self.dims, self.dims))
-            D[i] = depth[:, :, 0] / 255
+            
+            if(self.use_depth):
+                depth = cv2.imread(depth_files[i])
+                depth = cv2.resize(depth, (self.dims, self.dims))
+                D[i] = depth[:, :, 0] / 255
 
             out_img_0 = cv2.imread(output_files[i])
             out_img_0 = cv2.resize(out_img_0, (self.dims, self.dims))
@@ -88,7 +92,11 @@ class DataGenerator(tf.keras.utils.Sequence):
         # Expand dimensions to fit the model input
         X = np.expand_dims(X, axis=3)
         L = np.expand_dims(L, axis=3)
-        D = np.expand_dims(D, axis=3)
+        if(self.use_depth):
+            D = np.expand_dims(D, axis=3)
         Y = np.expand_dims(Y, axis=3)
 
-        return ([X, L, D], Y)
+        if(self.use_depth):
+            return ([X, L, D], Y)
+        else:
+            return ([X, L], Y)
