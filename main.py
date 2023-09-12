@@ -104,21 +104,32 @@ for i in range(args.epochs):
     generator.fit(data_gen, epochs=1)
 
     batch = data_gen.__getitem__(random.randrange(0, data_gen.count))
-
     sample = np.squeeze(batch[0][0][0])
     lines = np.squeeze(batch[0][1][0])
-    depth = np.squeeze(batch[0][2][0])
+    if(args.use_depths):
+        depth = np.squeeze(batch[0][2][0])
     out_sample_2 = np.squeeze(batch[1][0])
 
-    prediction = generator([
-        np.expand_dims(sample, 0),
-        np.expand_dims(lines, 0),
-        np.expand_dims(depth, 0)
-    ])
+    if(args.use_depth):
+        prediction = generator([
+            np.expand_dims(sample, 0),
+            np.expand_dims(lines, 0),
+            np.expand_dims(depth, 0)
+        ])
+    else:
+        prediction = generator([
+            np.expand_dims(sample, 0),
+            np.expand_dims(lines, 0),
+        ])
+        
     prediction = np.squeeze(prediction)
 
     plt.figure(figsize=(10, 40))
-    plt.imshow(np.hstack([sample, out_sample_2, lines, depth, prediction]), cmap="gray")
+
+    if(args.use_depth):
+        plt.imshow(np.hstack([sample, out_sample_2, lines, depth, prediction]), cmap="gray")
+    else:
+        plt.imshow(np.hstack([sample, out_sample_2, lines, prediction]), cmap="gray")
     plt.show()
 
 checkpoint_path = f"{args.saved_models}/{args.dims}/"

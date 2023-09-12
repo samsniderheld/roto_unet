@@ -48,9 +48,12 @@ def parse_args():
         '--dims', type=int, default=512, 
         help='The Dimensions to Render at')
     parser.add_argument(
-        '--saved_models', type=str, default="saved_models",
-        help='The directory where all the save model weights live.'
+        '--use_depth', action='store_true',
+        help='enable depth map condition'
     )
+    parser.add_argument(
+        '--saved_models', type=str, default="saved_models",
+        help='The directory where all the save model weights live.')
 
     return parser.parse_args()
 
@@ -59,17 +62,17 @@ args = parse_args()
 os.makedirs(args.output_dir, exist_ok=True)
 
 if args.dims == 256:
-    generator = create_generator((256, 256, 1))
+    generator = create_generator((256, 256, 1),args.use_depth)
     generator.load_weights(f"{args.saved_models}/256")
 
 
 elif args.dims == 512:
-    generator = create_generator((256, 256, 1))
+    generator = create_generator((256, 256, 1),args.use_depth)
     generator = add_layers_to_unet(generator)
     generator.load_weights(f"{args.saved_models}/512")
 
 elif args.dims == 1024:
-    generator = create_generator((256, 256, 1))
+    generator = create_generator((256, 256, 1),args.use_depth)
     generator = add_layers_to_unet(generator)
     generator = add_layers_to_unet(generator, 1024)
     generator.load_weights(f"{args.saved_models}/1024")
@@ -80,7 +83,6 @@ for i in tqdm(range(0,len(inputs))):
 
     sample = cv2.imread(inputs[i])
     lines = create_hed(sample,512,512)
-    depth = create_midas(sample)
 
     sample = cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)
     lines = cv2.cvtColor(lines, cv2.COLOR_BGR2GRAY)
@@ -91,15 +93,23 @@ for i in tqdm(range(0,len(inputs))):
     lines = lines/255
     lines = cv2.resize(lines,(args.dims,args.dims))
 
-    depth = depth/255
-    depth = cv2.resize(depth,(args.dims,args.dims))
+    if(args.use_depth):
+        depth = create_midas(sample)
+        depth = depth/255
+        depth = cv2.resize(depth,(args.dims,args.dims))
 
 
-    prediction = generator([
-        np.expand_dims(sample, 0),
-        np.expand_dims(lines, 0),
-        np.expand_dims(depth, 0)
-    ])
+        prediction = generator([
+            np.expand_dims(sample, 0),
+            np.expand_dims(lines, 0),
+            np.expand_dims(depth, 0)
+        ])
+
+    else:
+        prediction = generator([
+            np.expand_dims(sample, 0),
+            np.expand_dims(lines, 0)
+        ])
 
 
     prediction = np.squeeze(prediction)*255
