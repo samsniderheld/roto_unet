@@ -106,7 +106,7 @@ for i in range(args.epochs):
     batch = data_gen.__getitem__(random.randrange(0, data_gen.count))
     sample = np.squeeze(batch[0][0][0])
     lines = np.squeeze(batch[0][1][0])
-    if(args.use_depths):
+    if(args.use_depth):
         depth = np.squeeze(batch[0][2][0])
     out_sample_2 = np.squeeze(batch[1][0])
 
