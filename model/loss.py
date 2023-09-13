@@ -14,14 +14,40 @@ import tensorflow as tf
 from tensorflow.keras import backend as K
 
 
+def perceptual_loss_builder(layers_list):
+    
+    # Load the VGG16 model
+    base_model = VGG16(weights='imagenet', include_top=False)
+    
+    # Get the output of the specified layers
+    outputs = [base_model.get_layer(layer).output for layer in layers_list]
+    
+    # Build the intermediate model
+    intermediate_model = Model(inputs=base_model.input, outputs=outputs)
+    
+    # Define the perceptual loss function
+    def perceptual_loss(y_true, y_pred):
+        # Get the features for the true and predicted images
+        y_true_features = intermediate_model(y_true)
+        y_pred_features = intermediate_model(y_pred)
+        
+        # Compute the perceptual loss as the average mse across all specified layers
+        loss = sum(tf.reduce_mean(tf.square(y_true_f - y_pred_f)) for y_true_f, y_pred_f in zip(y_true_features, y_pred_features))
+        loss /= len(layers_list)
+        
+        return loss
+    
+    return perceptual_loss
+
+
 # # Load a pre-trained VGG16 model and set up as feature extractors
 # def get_vgg_models(perception_layers):
 
 #     # Ensure the VGG model is not trainable
-#     for layer in vgg.layers:
-#         layer.trainable = False
 
 #     vgg = VGG16(weights='imagenet', include_top=False)
+#     for layer in vgg.layers:
+#         layer.trainable = False
 
 #     models = []
 
@@ -30,48 +56,47 @@ from tensorflow.keras import backend as K
 
 #     return models
 
-# Load a pre-trained VGG16 model and set up as feature extractors
-vgg = VGG16(weights='imagenet', include_top=False)
-vgg_1 = Model(inputs=vgg.inputs, outputs=vgg.get_layer('block3_conv3').output)
-vgg_2 = Model(inputs=vgg.inputs, outputs=vgg.get_layer('block2_conv2').output)
+# # vgg = VGG16(weights='imagenet', include_top=False)
+# # vgg_1 = Model(inputs=vgg.inputs, outputs=vgg.get_layer('block3_conv3').output)
+# # vgg_2 = Model(inputs=vgg.inputs, outputs=vgg.get_layer('block2_conv2').output)
 
-# Ensure the VGG model is not trainable
-for layer in vgg.layers:
-    layer.trainable = False
+# # # Ensure the VGG model is not trainable
+# # for layer in vgg.layers:
+# #     layer.trainable = False
 
 
-def perceptual_loss(y_true, y_pred):
-    """
-    Computes the perceptual loss between the true and predicted images based
-    on the feature maps extracted from a pre-trained VGG16 model.
+# def perceptual_loss(y_true, y_pred):
+#     """
+#     Computes the perceptual loss between the true and predicted images based
+#     on the feature maps extracted from a pre-trained VGG16 model.
 
-    Parameters:
-    - y_true (Tensor): Ground truth image tensor.
-    - y_pred (Tensor): Predicted image tensor.
+#     Parameters:
+#     - y_true (Tensor): Ground truth image tensor.
+#     - y_pred (Tensor): Predicted image tensor.
 
-    Returns:
-    - loss (Tensor): The computed perceptual loss.
-    """
-    # Convert the images to 3 channels
-    y_true = tf.repeat(y_true, 3, axis=-1)
-    y_pred = tf.repeat(y_pred, 3, axis=-1)
+#     Returns:
+#     - loss (Tensor): The computed perceptual loss.
+#     """
+#     # Convert the images to 3 channels
+#     y_true = tf.repeat(y_true, 3, axis=-1)
+#     y_pred = tf.repeat(y_pred, 3, axis=-1)
 
-    # Resize images to fit VGG16 input size
-    y_true = tf.image.resize(y_true, [224, 224])
-    y_pred = tf.image.resize(y_pred, [224, 224])
+#     # Resize images to fit VGG16 input size
+#     y_true = tf.image.resize(y_true, [224, 224])
+#     y_pred = tf.image.resize(y_pred, [224, 224])
 
-    # Extract the feature maps
-    y_true_features_1 = vgg_1(y_true)
-    y_pred_features_1 = vgg_1(y_pred)
+#     # Extract the feature maps
+#     y_true_features_1 = vgg_1(y_true)
+#     y_pred_features_1 = vgg_1(y_pred)
 
-    y_true_features_2 = vgg_2(y_true)
-    y_pred_features_2 = vgg_2(y_pred)
+#     y_true_features_2 = vgg_2(y_true)
+#     y_pred_features_2 = vgg_2(y_pred)
 
-    # Calculate the MSE between the feature maps
-    loss_1 = tf.reduce_mean(tf.square(y_true_features_1 - y_pred_features_1))
-    loss_2 = tf.reduce_mean(tf.square(y_true_features_2 - y_pred_features_2))
+#     # Calculate the MSE between the feature maps
+#     loss_1 = tf.reduce_mean(tf.square(y_true_features_1 - y_pred_features_1))
+#     loss_2 = tf.reduce_mean(tf.square(y_true_features_2 - y_pred_features_2))
 
-    # Calculate the overall loss as the average of the two losses
-    loss = (loss_1 + loss_2) / 2
+#     # Calculate the overall loss as the average of the two losses
+#     loss = (loss_1 + loss_2) / 2
 
-    return loss
+#     return loss

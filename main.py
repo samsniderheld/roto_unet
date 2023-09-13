@@ -35,7 +35,9 @@ import matplotlib.pyplot as plt
 
 from data.data_generator import DataGenerator
 from model.model import create_generator, add_layers_to_unet
-from model.loss import perceptual_loss
+# from model.loss import perceptual_loss
+
+from model.loss import perceptual_loss_builder
 
 def parse_args():
     """Parse the command line arguments."""
@@ -74,6 +76,8 @@ def parse_args():
 args = parse_args()
 
 os.makedirs(args.saved_models, exist_ok=True)
+
+perceptual_loss = perceptual_loss_builder(args.perceptual_loss_layers)
 
 if args.dims == 256:
     generator = create_generator((256, 256, 1),args.use_depth)
