@@ -58,7 +58,7 @@ def parse_args():
         help='enable depth map condition'
     )
     parser.add_argument(
-        '--perceptual_loss_layers', type=str, default=['block3_conv3', 'block2_conv2'],
+        '--perceptual_loss_layers', type=str, nargs='+', default=['block3_conv3', 'block2_conv2'],
         help='The dimensions to train at'
     )
     parser.add_argument(
