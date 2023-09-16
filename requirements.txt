@@ -1,2 +1,17 @@
 timm
+tensorflow
 tensorflow-addons
+xformers
+bitsandbytes
+transformers
+accelerate
+safetensors
+invisible_watermark
+k-diffusion
+compel
+torch
+opencv-contrib-python
+controlnet_aux
+diffusers
+gradio
+ftfy

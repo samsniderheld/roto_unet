@@ -8,11 +8,10 @@ import numpy as np
 from PIL import Image
 import tensorflow as tf
 import tensorflow_addons as tfa
-import torch
 import torchvision.transforms as T
 from tqdm import tqdm
 
-from utils import *
+from .. import utils
 
 def parse_args():
     """
