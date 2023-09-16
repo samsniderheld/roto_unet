@@ -53,12 +53,12 @@ os.makedirs(os.path.join(args.output_dir,'train_A'), exist_ok=True)
 os.makedirs(os.path.join(args.output_dir,'train_B'), exist_ok=True)
 
 controlnet = ControlNetModel.from_pretrained(args.controlnet_path)
-control_netpipe = StableDiffusionControlNetPipeline.from_pretrained(
+control_net_pipe = StableDiffusionControlNetPipeline.from_pretrained(
     args.base_sd_model,
     controlnet=controlnet,
     safety_checker=None,
 ).to('cuda')
-control_netpipe.scheduler = UniPCMultistepScheduler.from_config(control_netpipe.scheduler.config)
+control_net_pipe.scheduler = UniPCMultistepScheduler.from_config(control_net_pipe.scheduler.config)
 
 def generate_image_pair(control_net_prompt, controlnet_img,controlnet_conditioning_scale,steps,cfg):
     #generates pair
@@ -68,20 +68,29 @@ def generate_image_pair(control_net_prompt, controlnet_img,controlnet_conditioni
     
     random_seed = random.randrange(0,100000)
 
-    controlnet_img = Image.fromarray(controlnet_img)
+    # controlnet_img = Image.fromarray(controlnet_img)
+
+    low_threshold = 100
+    high_threshold = 200
+
+    controlnet_img = cv2.resize(controlnet_img,(512,512))
+
+    image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
+    image = image[:, :, None]
+    image = np.concatenate([image, image, image], axis=2)
+    canny_image = Image.fromarray(image)
 
     out_img = control_net_pipe(prompt=control_net_prompt,
                     negative_prompt = negative_prompt,
-                    image= controlnet_img,
+                    image= canny_image,
                     controlnet_conditioning_scale=controlnet_conditioning_scale,
-                    height=1024,
-                    width=1024,
+                    height=512,
+                    width=512,
                     num_inference_steps=steps, generator=torch.Generator(device='cuda').manual_seed(random_seed),
                     guidance_scale = cfg).images[0]
     
 
     image_pair = np.hstack([controlnet_img,out_img])
-    image_pair = cv2.cvtColor(np.uint8(image_pair),cv2.COLOR_BGR2RGB)
     
     return image_pair
 
@@ -99,10 +108,10 @@ with gr.Blocks() as demo:
                 controlnet_prompt_input = gr.Textbox(label="prompt")
                 controlnet_input_img = gr.Image(label="input img")
                 controlnet_conditioning_scale_input = gr.Slider(0, 1, 
-                    value=args.controlnet_str, label="controlnet_conditioning_scale")
-                controlnet_steps_input = gr.Slider(0, 150, value=args.steps,
+                    value=0.8, label="controlnet_conditioning_scale")
+                controlnet_steps_input = gr.Slider(0, 150, value=20,
                     label="number of diffusion steps")
-                controlnet_cfg_input = gr.Slider(0,30,value=args.cfg_scale,label="cfg scale")
+                controlnet_cfg_input = gr.Slider(0,30,value=3.5,label="cfg scale")
 
                 controlnet_inputs = [
                     controlnet_prompt_input,
@@ -122,8 +131,7 @@ with gr.Blocks() as demo:
 
 
 
-    controlnet_submit.click(generate_texture,inputs=controlnet_inputs,outputs=controlnet_output)
-    img2img_submit.click(generate_burger,inputs=img2img_inputs,outputs=img2img_output)
+    controlnet_submit.click(generate_image_pair,inputs=controlnet_inputs,outputs=controlnet_output)
 
 
 if __name__ == "__main__":
