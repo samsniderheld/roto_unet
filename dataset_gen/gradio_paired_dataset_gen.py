@@ -35,7 +35,7 @@ def parse_args():
         help='The directory for all the output results.')
 
     parser.add_argument(
-        '--output_dir', type=str, default='paired data outputs', 
+        '--output_dir', type=str, default='paired_data_outputs', 
         help='The directory for all the output results.')
     parser.add_argument(
         '--base_sd_model', type=str, default='SG161222/Realistic_Vision_V1.4', 
@@ -59,6 +59,8 @@ control_net_pipe = StableDiffusionControlNetPipeline.from_pretrained(
     safety_checker=None,
 ).to('cuda')
 control_net_pipe.scheduler = UniPCMultistepScheduler.from_config(control_net_pipe.scheduler.config)
+
+all_outputs = []
 
 def generate_image_pair(control_net_prompt, controlnet_img,controlnet_conditioning_scale,steps,cfg):
     #generates pair
@@ -91,10 +93,63 @@ def generate_image_pair(control_net_prompt, controlnet_img,controlnet_conditioni
     
 
     image_pair = np.hstack([controlnet_img,out_img])
-    
-    return image_pair
 
-    #generates the burger
+    all_outputs.append(image_pair)
+    
+    return all_outputs
+
+def generate_batch(control_net_prompt,controlnet_conditioning_scale,steps,cfg,batch_dir):
+    
+    all_outputs = []
+
+    directory_path = batch_dir
+
+    file_urls = sorted(
+        [os.path.join(directory_path, f) for f in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, f))],
+        key=str.casefold,  # This will sort the URLs in a case-insensitive manner
+    )
+
+    negative_prompt = f'illustration, sketch, drawing, poor quality, low quality'
+    
+    random_seed = random.randrange(0,100000)
+
+
+    for i, file in enumerate(file_urls):
+
+        controlnet_img = cv2.imread(file)
+         
+        low_threshold = 100
+        high_threshold = 200
+
+        controlnet_img = cv2.resize(controlnet_img,(512,512))
+
+        image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
+        image = image[:, :, None]
+        image = np.concatenate([image, image, image], axis=2)
+        canny_image = Image.fromarray(image)
+
+        out_img = control_net_pipe(prompt=control_net_prompt,
+                        negative_prompt = negative_prompt,
+                        image= canny_image,
+                        controlnet_conditioning_scale=controlnet_conditioning_scale,
+                        height=512,
+                        width=512,
+                        num_inference_steps=steps, generator=torch.Generator(device='cuda').manual_seed(random_seed),
+                        guidance_scale = cfg).images[0]
+        
+
+        image_pair = np.hstack([controlnet_img,out_img])
+
+        all_outputs.append(image_pair)
+
+        controlnet_img = np.uint8(controlnet_img)
+        out_img = cv2.cvtColor(np.uint8(out_img),cv2.COLOR_BGR2RGB)
+
+        cv2.imwrite(os.path.join(args.output_dir,f'train_A/{i:04d}.jpg'),controlnet_img)
+        cv2.imwrite(os.path.join(args.output_dir,f'train_B/{i:04d}.jpg'),out_img)
+    
+    return all_outputs
+
 
 # def save_config():
 #     #saves the config
@@ -113,6 +168,8 @@ with gr.Blocks() as demo:
                     label="number of diffusion steps")
                 controlnet_cfg_input = gr.Slider(0,30,value=3.5,label="cfg scale")
 
+                batch_input = gr.Textbox(label="batch_directory")
+
                 controlnet_inputs = [
                     controlnet_prompt_input,
                     controlnet_input_img,
@@ -121,18 +178,31 @@ with gr.Blocks() as demo:
                     controlnet_cfg_input,
                 ]
 
+                batch_inputs = [
+                    controlnet_prompt_input,
+                    controlnet_conditioning_scale_input,
+                    controlnet_steps_input,
+                    controlnet_cfg_input,
+                    batch_input
+                ]
+
             with gr.Column():
 
-                controlnet_output = gr.Image()
+                controlnet_output = gr.Gallery(
+                  columns = [1],
+                  object_fit='fill',
+                  show_label=True
+                )
 
     with gr.Row():
 
-            controlnet_submit = gr.Button("Submit")
+            controlnet_submit = gr.Button("Test")
+            batch_submit = gr.Button("Batch")
 
 
 
     controlnet_submit.click(generate_image_pair,inputs=controlnet_inputs,outputs=controlnet_output)
-
+    batch_submit.click(generate_batch,inputs=batch_inputs,outputs=controlnet_output)
 
 if __name__ == "__main__":
     demo.launch(share=True,debug=True)
