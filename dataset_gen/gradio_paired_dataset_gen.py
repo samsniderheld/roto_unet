@@ -187,15 +187,26 @@ def load_previous_img(directory):
      
     return image_pair
 
-def regenerate_pair(review_data_dir,review_prompt_input, negative_prompt_input, review_conditioning_scale_input,review_steps_input,review_cfg_input):
+def regenerate_pair(review_data_dir,review_prompt_input, negative_prompt_input, review_conditioning_scale_input,review_steps_input,review_cfg_input,index):
 
-    global file_index
+    # global file_index
+    file_index = index
         
     random_seed = random.randrange(0,100000)
 
-    img_a = os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg')
+    if(file_index>0):
+        img_a = os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg')
+        img_0 = os.path.join(review_data_dir,f'train_A/{file_index-1:04d}.jpg')
+    img_0_b = os.path.join(review_data_dir,f'train_B/{file_index-1:04d}.jpg')
+    img_1 = os.path.join(review_data_dir,f'train_A/{file_index+1:04d}.jpg')
+    img_1_b = os.path.join(review_data_dir,f'train_B/{file_index+1:04d}.jpg')
 
     controlnet_img = cv2.imread(img_a)
+
+    img_0 = cv2.imread(img_0)
+    img_0_b = cv2.imread(img_0_b)
+    img_1 = cv2.imread(img_1)
+    img_1_b = cv2.imread(img_1_b)
         
     low_threshold = 100
     high_threshold = 200
@@ -223,13 +234,22 @@ def regenerate_pair(review_data_dir,review_prompt_input, negative_prompt_input, 
     controlnet_img_pair = cv2.cvtColor(np.uint8(controlnet_img),cv2.COLOR_BGR2RGB)
     out_img = cv2.cvtColor(np.uint8(out_img),cv2.COLOR_BGR2RGB)
 
-
+    
     image_pair = np.hstack([controlnet_img_pair,out_img])
+    next_pair = np.hstack([img_1,img_1_b])
+
+    if(file_index>0):
+        prev_pair = np.hstack([img_0,img_0_b])
+        output = np.vstack([prev_pair,image_pair,next_pair])
+    else:
+        output = np.vstack([image_pair,next_pair])
+
+    
 
     cv2.imwrite(os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg'),controlnet_img)
     cv2.imwrite(os.path.join(review_data_dir,f'train_B/{file_index:04d}.jpg'),out_img)
     
-    return image_pair
+    return output
 
 # def save_config():
 #     #saves the config
@@ -295,7 +315,10 @@ with gr.Blocks() as demo:
                 review_steps_input = gr.Slider(0, 150, value=20,
                     label="number of diffusion steps")
                 review_cfg_input = gr.Slider(0,30,value=3.5,label="cfg scale")
+                index = gr.Slider(0, 1000, value=00,
+                    label="index")
 
+                
                 review_inputs = [
                     review_data_dir,
                     review_prompt_input,
@@ -303,6 +326,7 @@ with gr.Blocks() as demo:
                     review_conditioning_scale_input,
                     review_steps_input,
                     review_cfg_input,
+                    index
                 ]
 
 
