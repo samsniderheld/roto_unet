@@ -1,4 +1,7 @@
 ###file for generating augmented data###
+import sys
+sys.path.append('../')
+
 import argparse
 import os
 import glob
@@ -11,7 +14,7 @@ import tensorflow_addons as tfa
 import torchvision.transforms as T
 from tqdm import tqdm
 
-from .. import utils
+from utils import *
 
 def parse_args():
     """
@@ -55,13 +58,13 @@ def transform(files, args, name):
     replace_val = tf.constant([1.0,1.0,1.0])
 
     rand_rot = tf.random.uniform(shape=[1], minval=-1., maxval=1.)
-    rand_crop = tf.random.uniform(shape=[1], minval=800., maxval=1024.)
+    rand_crop = tf.random.uniform(shape=[1], minval=350., maxval=512.)
 
     img_raw_a = tf.io.read_file(files[idx][0])
     img_raw_b = tf.io.read_file(files[idx][1])
 
     img_a = tf.io.decode_image(img_raw_a)
-    img_a = tf.image.resize(img_a,(1024,1024))
+    img_a = tf.image.resize(img_a,(512,512))
     img_a = tfa.image.rotate(img_a, rand_rot,fill_mode='reflect')
 
     if rand_x > .5:
@@ -70,7 +73,7 @@ def transform(files, args, name):
       img_a = tf.image.flip_up_down(img_a)
 
 
-    img_a = tf.image.resize(img_a,(1024,1024)).numpy()
+    img_a = tf.image.resize(img_a,(512,512)).numpy()
     img_a = cv2.cvtColor(img_a,cv2.COLOR_BGR2RGB)
 
     img_c = create_hed(img_a,512,512)
@@ -79,7 +82,7 @@ def transform(files, args, name):
     img_a = cv2.cvtColor(img_a, cv2.COLOR_BGR2GRAY)
 
     img_b = tf.io.decode_image(img_raw_b)
-    img_b = tf.image.resize(img_b,(1024,1024))
+    img_b = tf.image.resize(img_b,(512,512))
     img_b = tfa.image.rotate(img_b, rand_rot,fill_mode='reflect')
 
     if rand_x > .5:
@@ -88,7 +91,7 @@ def transform(files, args, name):
       img_b = tf.image.flip_up_down(img_b)
 
 
-    img_b = tf.image.resize(img_b,(1024,1024)).numpy()
+    img_b = tf.image.resize(img_b,(512,512)).numpy()
     img_b = cv2.cvtColor(img_b,cv2.COLOR_BGR2RGB)
     img_b = cv2.cvtColor(img_b, cv2.COLOR_BGR2GRAY)
 

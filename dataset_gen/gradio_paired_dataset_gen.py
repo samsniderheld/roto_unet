@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 import argparse
 import os
 import random
@@ -16,6 +18,7 @@ from diffusers import (ControlNetModel,StableDiffusionControlNetPipeline,
 )
 from diffusers import UniPCMultistepScheduler
 
+from utils import create_hed
 
 def parse_args():
     """
@@ -51,6 +54,7 @@ args = parse_args()
 os.makedirs(args.output_dir, exist_ok=True)
 os.makedirs(os.path.join(args.output_dir,'train_A'), exist_ok=True)
 os.makedirs(os.path.join(args.output_dir,'train_B'), exist_ok=True)
+os.makedirs(os.path.join(args.output_dir,'paired'), exist_ok=True)
 
 controlnet = ControlNetModel.from_pretrained(args.controlnet_path)
 control_net_pipe = StableDiffusionControlNetPipeline.from_pretrained(
@@ -65,7 +69,7 @@ file_index = 0
 def generate_image_pair(control_net_prompt, controlnet_img,controlnet_conditioning_scale,steps,cfg):
     #generates pair
 
-    negative_prompt = f'illustration, sketch, drawing, poor quality, low quality'
+    negative_prompt = f'poor quality, low quality'
     
     random_seed = random.randrange(0,100000)
 
@@ -76,14 +80,19 @@ def generate_image_pair(control_net_prompt, controlnet_img,controlnet_conditioni
 
     controlnet_img = cv2.resize(controlnet_img,(512,512))
 
-    image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
-    image = image[:, :, None]
-    image = np.concatenate([image, image, image], axis=2)
-    canny_image = Image.fromarray(image)
+    # image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
+    # image = image[:, :, None]
+    # image = np.concatenate([image, image, image], axis=2)
+    # canny_image = Image.fromarray(image)
+
+    hed_img = create_hed(controlnet_img,512,512)
+
+    hed_img = cv2.cvtColor(hed_img,cv2.COLOR_RGB2GRAY)
+    hed_img = Image.fromarray(hed_img)
 
     out_img = control_net_pipe(prompt=control_net_prompt,
                     negative_prompt = negative_prompt,
-                    image= canny_image,
+                    image= hed_img,
                     controlnet_conditioning_scale=controlnet_conditioning_scale,
                     height=512,
                     width=512,
@@ -118,14 +127,19 @@ def generate_batch(control_net_prompt,controlnet_conditioning_scale,steps,cfg,ba
 
         controlnet_img = cv2.resize(controlnet_img,(512,512))
 
-        image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
-        image = image[:, :, None]
-        image = np.concatenate([image, image, image], axis=2)
-        canny_image = Image.fromarray(image)
+        # image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
+        # image = image[:, :, None]
+        # image = np.concatenate([image, image, image], axis=2)
+        # canny_image = Image.fromarray(image)
+
+        hed_img = create_hed(controlnet_img,512,512)
+
+        hed_img = cv2.cvtColor(hed_img,cv2.COLOR_RGB2GRAY)
+        hed_img = Image.fromarray(hed_img)
 
         out_img = control_net_pipe(prompt=control_net_prompt,
                         negative_prompt = negative_prompt,
-                        image= canny_image,
+                        image= hed_img,
                         controlnet_conditioning_scale=controlnet_conditioning_scale,
                         height=512,
                         width=512,
@@ -137,9 +151,11 @@ def generate_batch(control_net_prompt,controlnet_conditioning_scale,steps,cfg,ba
 
         controlnet_img = np.uint8(controlnet_img)
         out_img = cv2.cvtColor(np.uint8(out_img),cv2.COLOR_BGR2RGB)
-
+        out_pair = np.uint8(image_pair)
+        
         cv2.imwrite(os.path.join(args.output_dir,f'train_A/{i:04d}.jpg'),controlnet_img)
         cv2.imwrite(os.path.join(args.output_dir,f'train_B/{i:04d}.jpg'),out_img)
+        cv2.imwrite(os.path.join(args.output_dir,f'paired/{i:04d}.jpg'),out_pair)
     
     return image_pair
 
@@ -195,16 +211,18 @@ def regenerate_pair(review_data_dir,review_prompt_input, negative_prompt_input, 
     random_seed = random.randrange(0,100000)
 
     if(file_index>0):
-        img_a = os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg')
         img_0 = os.path.join(review_data_dir,f'train_A/{file_index-1:04d}.jpg')
-    img_0_b = os.path.join(review_data_dir,f'train_B/{file_index-1:04d}.jpg')
+        img_0_b = os.path.join(review_data_dir,f'train_B/{file_index-1:04d}.jpg')
+        img_0 = cv2.imread(img_0)
+        img_0_b = cv2.imread(img_0_b)
+   
     img_1 = os.path.join(review_data_dir,f'train_A/{file_index+1:04d}.jpg')
     img_1_b = os.path.join(review_data_dir,f'train_B/{file_index+1:04d}.jpg')
 
+    img_a = os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg')
     controlnet_img = cv2.imread(img_a)
 
-    img_0 = cv2.imread(img_0)
-    img_0_b = cv2.imread(img_0_b)
+  
     img_1 = cv2.imread(img_1)
     img_1_b = cv2.imread(img_1_b)
         
@@ -289,11 +307,12 @@ with gr.Blocks() as demo:
 
                 with gr.Column():
 
-                    controlnet_output = gr.Gallery(
-                        columns = [1],
-                        object_fit='fill',
-                        show_label=True
-                    )
+                    # controlnet_output = gr.Gallery(
+                    #     columns = [1],
+                    #     object_fit='fill',
+                    #     show_label=True
+                    # )
+                    controlnet_output = gr.Image()
 
         with gr.Row():
 
