@@ -15,8 +15,6 @@ from compel import Compel
 
 from diffusers import (ControlNetModel,StableDiffusionImg2ImgPipeline)
 
-from utils import create_hed
-
 def parse_args():
     """
     Parses the command-line arguments for the script.
@@ -53,10 +51,10 @@ os.makedirs(os.path.join(args.output_dir,'train_A'), exist_ok=True)
 os.makedirs(os.path.join(args.output_dir,'train_B'), exist_ok=True)
 os.makedirs(os.path.join(args.output_dir,'paired'), exist_ok=True)
 
-controlnet = ControlNetModel.from_pretrained(args.controlnet_path)
+controlnet = ControlNetModel.from_pretrained(args.controlnet_path, torch_dtype=torch.float16)
 
 pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-    args.bas_sd_model,
+    args.base_sd_model,
     custom_pipeline="stable_diffusion_controlnet_img2img",
     controlnet=controlnet,
     safety_checker=None,
@@ -73,16 +71,20 @@ def generate_image_pair(prompt, negative_prompt, init_img, controlnet_str, img2i
     prompt_embeds = compel_proc(prompt)
     negative_prompt_embeds = compel_proc(negative_prompt)
     
-    random_seed = seed
+    random_seed = int(seed)
 
     low_threshold = 100
     high_threshold = 200
 
+    init_img = cv2.resize(init_img,(512,512))
+
     image = cv2.Canny(init_img, low_threshold, high_threshold)
     image = image[:, :, None]
     image = np.concatenate([image, image, image], axis=2)
+
     canny_img = Image.fromarray(image)
 
+    init_img = Image.fromarray(init_img)
 
     out_img = pipe(prompt_embeds=prompt_embeds,
                   negative_prompt_embeds = negative_prompt_embeds,
@@ -110,12 +112,12 @@ def generate_batch(prompt,negative_prompt,controlnet_str,img2img_str,steps,cfg,s
     prompt_embeds = compel_proc(prompt)
     negative_prompt_embeds = compel_proc(negative_prompt)
     
-    random_seed = seed
-
+    random_seed = int(seed)
 
     for i, file in enumerate(file_urls):
 
         init_img = cv2.imread(file)
+        init_img = cv2.resize(init_img,(512,512))
          
         low_threshold = 100
         high_threshold = 200
@@ -124,6 +126,8 @@ def generate_batch(prompt,negative_prompt,controlnet_str,img2img_str,steps,cfg,s
         image = image[:, :, None]
         image = np.concatenate([image, image, image], axis=2)
         canny_img = Image.fromarray(image)
+
+        init_img = Image.fromarray(init_img)
 
         out_img = pipe(prompt_embeds=prompt_embeds,
                   negative_prompt_embeds = negative_prompt_embeds,
@@ -195,7 +199,7 @@ def regenerate_pair(review_data_dir,prompt,negative_prompt, controlnet_str,img2i
     # global file_index
     file_index = index
         
-    random_seed = seed
+    random_seed = int(seed)
 
     prompt_embeds = compel_proc(prompt)
     negative_prompt_embeds = compel_proc(negative_prompt)
