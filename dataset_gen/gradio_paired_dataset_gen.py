@@ -11,12 +11,9 @@ import numpy as np
 from PIL import Image, ImageFilter
 import torch
 
-from diffusers.utils import load_image
+from compel import Compel
 
-from diffusers import (ControlNetModel,StableDiffusionControlNetPipeline,
-                       StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipeline
-)
-from diffusers import UniPCMultistepScheduler
+from diffusers import (ControlNetModel,StableDiffusionImg2ImgPipeline)
 
 from utils import create_hed
 
@@ -57,54 +54,51 @@ os.makedirs(os.path.join(args.output_dir,'train_B'), exist_ok=True)
 os.makedirs(os.path.join(args.output_dir,'paired'), exist_ok=True)
 
 controlnet = ControlNetModel.from_pretrained(args.controlnet_path)
-control_net_pipe = StableDiffusionControlNetPipeline.from_pretrained(
-    args.base_sd_model,
+
+pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+    args.bas_sd_model,
+    custom_pipeline="stable_diffusion_controlnet_img2img",
     controlnet=controlnet,
     safety_checker=None,
+    torch_dtype=torch.float16
 ).to('cuda')
-control_net_pipe.scheduler = UniPCMultistepScheduler.from_config(control_net_pipe.scheduler.config)
+
+compel_proc = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder)
 
 file_index = 0
 
-def generate_image_pair(control_net_prompt, controlnet_img,controlnet_conditioning_scale,steps,cfg):
+def generate_image_pair(prompt, negative_prompt, init_img, controlnet_str, img2img_str,steps,cfg,seed):
     #generates pair
 
-    negative_prompt = f'poor quality, low quality'
+    prompt_embeds = compel_proc(prompt)
+    negative_prompt_embeds = compel_proc(negative_prompt)
     
-    random_seed = random.randrange(0,100000)
-
-    # controlnet_img = Image.fromarray(controlnet_img)
+    random_seed = seed
 
     low_threshold = 100
     high_threshold = 200
 
-    controlnet_img = cv2.resize(controlnet_img,(512,512))
+    image = cv2.Canny(init_img, low_threshold, high_threshold)
+    image = image[:, :, None]
+    image = np.concatenate([image, image, image], axis=2)
+    canny_img = Image.fromarray(image)
 
-    # image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
-    # image = image[:, :, None]
-    # image = np.concatenate([image, image, image], axis=2)
-    # canny_image = Image.fromarray(image)
 
-    hed_img = create_hed(controlnet_img,512,512)
+    out_img = pipe(prompt_embeds=prompt_embeds,
+                  negative_prompt_embeds = negative_prompt_embeds,
+                  controlnet_conditioning_image = canny_img,
+                  controlnet_conditioning_scale = controlnet_str,
+                  image= init_img,
+                  strength = img2img_str,
+                  num_inference_steps=steps, generator=torch.Generator(device='cuda').manual_seed(random_seed),
+                  guidance_scale = cfg).images[0]
 
-    hed_img = cv2.cvtColor(hed_img,cv2.COLOR_RGB2GRAY)
-    hed_img = Image.fromarray(hed_img)
 
-    out_img = control_net_pipe(prompt=control_net_prompt,
-                    negative_prompt = negative_prompt,
-                    image= hed_img,
-                    controlnet_conditioning_scale=controlnet_conditioning_scale,
-                    height=512,
-                    width=512,
-                    num_inference_steps=steps, generator=torch.Generator(device='cuda').manual_seed(random_seed),
-                    guidance_scale = cfg).images[0]
-    
-
-    image_pair = np.hstack([controlnet_img,out_img])
+    image_pair = np.hstack([init_img,canny_img,out_img])
     
     return image_pair
 
-def generate_batch(control_net_prompt,controlnet_conditioning_scale,steps,cfg,batch_dir):
+def generate_batch(prompt,negative_prompt,controlnet_str,img2img_str,steps,cfg,seed, batch_dir):
     
     directory_path = batch_dir
 
@@ -113,47 +107,40 @@ def generate_batch(control_net_prompt,controlnet_conditioning_scale,steps,cfg,ba
         key=str.casefold,  # This will sort the URLs in a case-insensitive manner
     )
 
-    negative_prompt = f'poor quality, low quality'
+    prompt_embeds = compel_proc(prompt)
+    negative_prompt_embeds = compel_proc(negative_prompt)
     
-    random_seed = random.randrange(0,100000)
+    random_seed = seed
 
 
     for i, file in enumerate(file_urls):
 
-        controlnet_img = cv2.imread(file)
+        init_img = cv2.imread(file)
          
         low_threshold = 100
         high_threshold = 200
 
-        controlnet_img = cv2.resize(controlnet_img,(512,512))
+        image = cv2.Canny(init_img, low_threshold, high_threshold)
+        image = image[:, :, None]
+        image = np.concatenate([image, image, image], axis=2)
+        canny_img = Image.fromarray(image)
 
-        # image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
-        # image = image[:, :, None]
-        # image = np.concatenate([image, image, image], axis=2)
-        # canny_image = Image.fromarray(image)
-
-        hed_img = create_hed(controlnet_img,512,512)
-
-        hed_img = cv2.cvtColor(hed_img,cv2.COLOR_RGB2GRAY)
-        hed_img = Image.fromarray(hed_img)
-
-        out_img = control_net_pipe(prompt=control_net_prompt,
-                        negative_prompt = negative_prompt,
-                        image= hed_img,
-                        controlnet_conditioning_scale=controlnet_conditioning_scale,
-                        height=512,
-                        width=512,
-                        num_inference_steps=steps, generator=torch.Generator(device='cuda').manual_seed(random_seed),
-                        guidance_scale = cfg).images[0]
+        out_img = pipe(prompt_embeds=prompt_embeds,
+                  negative_prompt_embeds = negative_prompt_embeds,
+                  controlnet_conditioning_image = canny_img,
+                  controlnet_conditioning_scale = controlnet_str,
+                  image= init_img,
+                  strength = img2img_str,
+                  num_inference_steps=steps, generator=torch.Generator(device='cuda').manual_seed(random_seed),
+                  guidance_scale = cfg).images[0]
         
+        image_pair = np.hstack([init_img,canny_img,out_img])
 
-        image_pair = np.hstack([controlnet_img,out_img])
-
-        controlnet_img = np.uint8(controlnet_img)
+        init_img = np.uint8(init_img)
         out_img = cv2.cvtColor(np.uint8(out_img),cv2.COLOR_BGR2RGB)
         out_pair = np.uint8(image_pair)
         
-        cv2.imwrite(os.path.join(args.output_dir,f'train_A/{i:04d}.jpg'),controlnet_img)
+        cv2.imwrite(os.path.join(args.output_dir,f'train_A/{i:04d}.jpg'),init_img)
         cv2.imwrite(os.path.join(args.output_dir,f'train_B/{i:04d}.jpg'),out_img)
         cv2.imwrite(os.path.join(args.output_dir,f'paired/{i:04d}.jpg'),out_pair)
     
@@ -203,12 +190,15 @@ def load_previous_img(directory):
      
     return image_pair
 
-def regenerate_pair(review_data_dir,review_prompt_input, negative_prompt_input, review_conditioning_scale_input,review_steps_input,review_cfg_input,index):
+def regenerate_pair(review_data_dir,prompt,negative_prompt, controlnet_str,img2img_str,steps,cfg,seed,index):
 
     # global file_index
     file_index = index
         
-    random_seed = random.randrange(0,100000)
+    random_seed = seed
+
+    prompt_embeds = compel_proc(prompt)
+    negative_prompt_embeds = compel_proc(negative_prompt)
 
     if(file_index>0):
         img_0 = os.path.join(review_data_dir,f'train_A/{file_index-1:04d}.jpg')
@@ -220,7 +210,7 @@ def regenerate_pair(review_data_dir,review_prompt_input, negative_prompt_input, 
     img_1_b = os.path.join(review_data_dir,f'train_B/{file_index+1:04d}.jpg')
 
     img_a = os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg')
-    controlnet_img = cv2.imread(img_a)
+    init_img = cv2.imread(img_a)
 
   
     img_1 = cv2.imread(img_1)
@@ -229,26 +219,25 @@ def regenerate_pair(review_data_dir,review_prompt_input, negative_prompt_input, 
     low_threshold = 100
     high_threshold = 200
 
-    controlnet_img = cv2.resize(controlnet_img,(512,512))
 
-    image = cv2.Canny(controlnet_img, low_threshold, high_threshold)
+    image = cv2.Canny(init_img, low_threshold, high_threshold)
     image = image[:, :, None]
     image = np.concatenate([image, image, image], axis=2)
-    canny_image = Image.fromarray(image)
+    canny_img = Image.fromarray(image)
 
-    out_img = control_net_pipe(prompt=review_prompt_input,
-                    negative_prompt = negative_prompt_input,
-                    image= canny_image,
-                    controlnet_conditioning_scale=review_conditioning_scale_input,
-                    height=512,
-                    width=512,
-                    num_inference_steps=review_steps_input, generator=torch.Generator(device='cuda').manual_seed(random_seed),
-                    guidance_scale = review_cfg_input).images[0]
+    out_img = pipe(prompt_embeds=prompt_embeds,
+                  negative_prompt_embeds = negative_prompt_embeds,
+                  controlnet_conditioning_image = canny_img,
+                  controlnet_conditioning_scale = controlnet_str,
+                  image= init_img,
+                  strength = img2img_str,
+                  num_inference_steps=steps, generator=torch.Generator(device='cuda').manual_seed(random_seed),
+                  guidance_scale = cfg).images[0]
     
 
     
 
-    controlnet_img = np.uint8(controlnet_img)
+    controlnet_img = np.uint8(init_img)
     controlnet_img_pair = cv2.cvtColor(np.uint8(controlnet_img),cv2.COLOR_BGR2RGB)
     out_img = cv2.cvtColor(np.uint8(out_img),cv2.COLOR_BGR2RGB)
 
@@ -280,28 +269,38 @@ with gr.Blocks() as demo:
 
                 with gr.Column():
                     controlnet_prompt_input = gr.Textbox(label="prompt")
+                    negative_control_net_prompt = gr.Textbox(label="negative prompt")
                     controlnet_input_img = gr.Image(label="input img")
                     controlnet_conditioning_scale_input = gr.Slider(0, 1, 
                         value=0.8, label="controlnet_conditioning_scale")
+                    img2img_str = gr.Slider(0, 1, 
+                        value=0.8, label="img2img strength")
                     controlnet_steps_input = gr.Slider(0, 150, value=20,
                         label="number of diffusion steps")
                     controlnet_cfg_input = gr.Slider(0,30,value=3.5,label="cfg scale")
+                    seed = gr.Number()
 
                     batch_input = gr.Textbox(label="batch_directory")
 
                     controlnet_inputs = [
                         controlnet_prompt_input,
+                        negative_control_net_prompt,
                         controlnet_input_img,
                         controlnet_conditioning_scale_input,
+                        img2img_str,
                         controlnet_steps_input,
                         controlnet_cfg_input,
+                        seed
                     ]
 
                     batch_inputs = [
                         controlnet_prompt_input,
+                        negative_control_net_prompt,
                         controlnet_conditioning_scale_input,
+                        img2img_str,
                         controlnet_steps_input,
                         controlnet_cfg_input,
+                        seed,
                         batch_input
                     ]
 
