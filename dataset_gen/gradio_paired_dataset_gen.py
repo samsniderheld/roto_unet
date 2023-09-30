@@ -159,12 +159,9 @@ def load_next_img(directory):
     else:
         file_index+=1
 
-    img_a = cv2.imread(os.path.join(args.output_dir,f'train_A/{file_index:04d}.jpg'))
-    img_b = cv2.imread(os.path.join(args.output_dir,f'train_B/{file_index:04d}.jpg'))
+    pair = cv2.imread(os.path.join(args.output_dir,f'paired/{file_index:04d}.jpg'))
 
-    image_pair = np.hstack([img_a,img_b])
-
-    image_pair = cv2.cvtColor(np.uint8(image_pair),cv2.COLOR_BGR2RGB)
+    image_pair = cv2.cvtColor(np.uint8(pair),cv2.COLOR_BGR2RGB)
      
     return image_pair
 
@@ -179,18 +176,14 @@ def load_previous_img(directory):
         key=str.casefold,  # This will sort the URLs in a case-insensitive manner
     )
 
-
     if(file_index == len(file_urls)):
         file_index = len(file_urls)
     else:
         file_index-=1
 
-    img_a = cv2.imread(os.path.join(args.output_dir,f'train_A/{file_index:04d}.jpg'))
-    img_b = cv2.imread(os.path.join(args.output_dir,f'train_B/{file_index:04d}.jpg'))
+    pair = cv2.imread(os.path.join(args.output_dir,f'paired/{file_index:04d}.jpg'))
 
-    image_pair = np.hstack([img_a,img_b])
-
-    image_pair = cv2.cvtColor(np.uint8(image_pair),cv2.COLOR_BGR2RGB)
+    image_pair = cv2.cvtColor(np.uint8(pair),cv2.COLOR_BGR2RGB)
      
     return image_pair
 
@@ -261,6 +254,17 @@ def regenerate_pair(review_data_dir,prompt,negative_prompt, controlnet_str,img2i
     cv2.imwrite(os.path.join(review_data_dir,f'train_B/{file_index:04d}.jpg'),out_img)
     
     return output
+
+def delete_pair(review_data_dir,index):
+
+    global file_index
+    os.remove(os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg'))
+    os.remove(os.path.join(review_data_dir,f'train_B/{file_index:04d}.jpg'))
+    os.remove(os.path.join(review_data_dir,f'paired/{file_index:04d}.jpg'))
+
+     
+    return None
+
 
 # def save_config():
 #     #saves the config
@@ -360,6 +364,7 @@ with gr.Blocks() as demo:
 
             load_next = gr.Button("load next")
             review_submit = gr.Button("regenerate")
+            delete_button = gr.Button("delete")
             load_previous = gr.Button("load previous")
 
 
@@ -368,6 +373,7 @@ with gr.Blocks() as demo:
     batch_submit.click(generate_batch,inputs=batch_inputs,outputs=controlnet_output)
 
     review_submit.click(regenerate_pair,inputs=review_inputs,outputs=review_output)
+    delete_button.click(delete_pair,inputs=[review_data_dir,index],outputs=review_output)
     load_next.click(load_next_img,inputs=review_data_dir,outputs=review_output)
     load_previous.click(load_previous_img,inputs=review_data_dir,outputs=review_output)
 
