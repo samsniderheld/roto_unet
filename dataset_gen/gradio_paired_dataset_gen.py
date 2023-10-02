@@ -154,12 +154,21 @@ def load_next_img(directory):
 
     global file_index
 
+    directory_path = os.path.join(directory,"paired")
+
+    file_urls = sorted(
+        [os.path.join(directory_path, f) for f in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, f))],
+        key=str.casefold,  # This will sort the URLs in a case-insensitive manner
+    )
+
+    print(file_urls)
+
     if(file_index < 0):
         file_index = 0
     else:
         file_index+=1
 
-    pair = cv2.imread(os.path.join(args.output_dir,f'paired/{file_index:04d}.jpg'))
+    pair = cv2.imread(file_urls[file_index])
 
     image_pair = cv2.cvtColor(np.uint8(pair),cv2.COLOR_BGR2RGB)
      
@@ -169,7 +178,7 @@ def load_previous_img(directory):
 
     global file_index
 
-    directory_path = directory
+    directory_path = os.path.join(directory,"paired")
 
     file_urls = sorted(
         [os.path.join(directory_path, f) for f in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, f))],
@@ -181,8 +190,7 @@ def load_previous_img(directory):
     else:
         file_index-=1
 
-    pair = cv2.imread(os.path.join(args.output_dir,f'paired/{file_index:04d}.jpg'))
-
+    pair = cv2.imread(file_urls[file_index])
     image_pair = cv2.cvtColor(np.uint8(pair),cv2.COLOR_BGR2RGB)
      
     return image_pair
