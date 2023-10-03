@@ -161,14 +161,14 @@ def load_next_img(directory):
         key=str.casefold,  # This will sort the URLs in a case-insensitive manner
     )
 
-    print(file_urls)
-
-    if(file_index < 0):
-        file_index = 0
+    if(file_index == len(file_urls)):
+        file_index = len(file_urls)
     else:
         file_index+=1
 
-    pair = cv2.imread(file_urls[file_index])
+    path = file_urls[file_index]
+    print(path)
+    pair = cv2.imread(path)
 
     image_pair = cv2.cvtColor(np.uint8(pair),cv2.COLOR_BGR2RGB)
      
@@ -185,97 +185,45 @@ def load_previous_img(directory):
         key=str.casefold,  # This will sort the URLs in a case-insensitive manner
     )
 
-    if(file_index == len(file_urls)):
-        file_index = len(file_urls)
+    if(file_index < 0):
+        file_index = 0
     else:
-        file_index-=1
+        file_index-=1    
 
-    pair = cv2.imread(file_urls[file_index])
+    path = file_urls[file_index]
+    print(path)
+    pair = cv2.imread(path)
     image_pair = cv2.cvtColor(np.uint8(pair),cv2.COLOR_BGR2RGB)
      
     return image_pair
 
-def regenerate_pair(review_data_dir,prompt,negative_prompt, controlnet_str,img2img_str,steps,cfg,seed,index):
-
-    # global file_index
-    file_index = index
-        
-    random_seed = int(seed)
-
-    prompt_embeds = compel_proc(prompt)
-    negative_prompt_embeds = compel_proc(negative_prompt)
-
-    if(file_index>0):
-        img_0 = os.path.join(review_data_dir,f'train_A/{file_index-1:04d}.jpg')
-        img_0_b = os.path.join(review_data_dir,f'train_B/{file_index-1:04d}.jpg')
-        img_0 = cv2.imread(img_0)
-        img_0_b = cv2.imread(img_0_b)
-   
-    img_1 = os.path.join(review_data_dir,f'train_A/{file_index+1:04d}.jpg')
-    img_1_b = os.path.join(review_data_dir,f'train_B/{file_index+1:04d}.jpg')
-
-    img_a = os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg')
-    init_img = cv2.imread(img_a)
-
-  
-    img_1 = cv2.imread(img_1)
-    img_1_b = cv2.imread(img_1_b)
-        
-    low_threshold = 100
-    high_threshold = 200
-
-
-    image = cv2.Canny(init_img, low_threshold, high_threshold)
-    image = image[:, :, None]
-    image = np.concatenate([image, image, image], axis=2)
-    canny_img = Image.fromarray(image)
-
-    out_img = pipe(prompt_embeds=prompt_embeds,
-                  negative_prompt_embeds = negative_prompt_embeds,
-                  controlnet_conditioning_image = canny_img,
-                  controlnet_conditioning_scale = controlnet_str,
-                  image= init_img,
-                  strength = img2img_str,
-                  num_inference_steps=steps, generator=torch.Generator(device='cuda').manual_seed(random_seed),
-                  guidance_scale = cfg).images[0]
-    
-
-    
-
-    controlnet_img = np.uint8(init_img)
-    controlnet_img_pair = cv2.cvtColor(np.uint8(controlnet_img),cv2.COLOR_BGR2RGB)
-    out_img = cv2.cvtColor(np.uint8(out_img),cv2.COLOR_BGR2RGB)
-
-    
-    image_pair = np.hstack([controlnet_img_pair,out_img])
-    next_pair = np.hstack([img_1,img_1_b])
-
-    if(file_index>0):
-        prev_pair = np.hstack([img_0,img_0_b])
-        output = np.vstack([prev_pair,image_pair,next_pair])
-    else:
-        output = np.vstack([image_pair,next_pair])
-
-    
-
-    cv2.imwrite(os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg'),controlnet_img)
-    cv2.imwrite(os.path.join(review_data_dir,f'train_B/{file_index:04d}.jpg'),out_img)
-    
-    return output
-
-def delete_pair(review_data_dir,index):
+def delete_pair(review_data_dir):
 
     global file_index
-    os.remove(os.path.join(review_data_dir,f'train_A/{file_index:04d}.jpg'))
-    os.remove(os.path.join(review_data_dir,f'train_B/{file_index:04d}.jpg'))
-    os.remove(os.path.join(review_data_dir,f'paired/{file_index:04d}.jpg'))
+    
+    paired_path = os.path.join(review_data_dir,"paired")
+    train_A_path = os.path.join(review_data_dir,"train_A")
+    train_B_path = os.path.join(review_data_dir,"train_B")
 
-     
+    file_urls_paired = sorted(
+        [os.path.join(paired_path, f) for f in os.listdir(paired_path) if os.path.isfile(os.path.join(paired_path, f))],
+        key=str.casefold,  # This will sort the URLs in a case-insensitive manner
+    )
+
+    file_urls_train_A = sorted(
+        [os.path.join(train_A_path, f) for f in os.listdir(train_A_path) if os.path.isfile(os.path.join(train_A_path, f))],
+        key=str.casefold,  # This will sort the URLs in a case-insensitive manner
+    )
+
+    file_urls_train_B = sorted(
+        [os.path.join(train_B_path, f) for f in os.listdir(train_B_path) if os.path.isfile(os.path.join(train_B_path, f))],
+        key=str.casefold,  # This will sort the URLs in a case-insensitive manner
+    )
+    os.remove(file_urls_paired[file_index])
+    os.remove(file_urls_train_A[file_index])
+    os.remove(file_urls_train_B[file_index])
+
     return None
-
-
-# def save_config():
-#     #saves the config
 
 with gr.Blocks() as demo:
 
@@ -322,11 +270,6 @@ with gr.Blocks() as demo:
 
                 with gr.Column():
 
-                    # controlnet_output = gr.Gallery(
-                    #     columns = [1],
-                    #     object_fit='fill',
-                    #     show_label=True
-                    # )
                     controlnet_output = gr.Image()
 
         with gr.Row():
@@ -342,27 +285,6 @@ with gr.Blocks() as demo:
 
                 review_data_dir = gr.Textbox(label="data dir")
 
-                review_prompt_input = gr.Textbox(label="prompt")
-                review_negative_prompt_input = gr.Textbox(label="negative prompt")
-                review_conditioning_scale_input = gr.Slider(0, 1, 
-                    value=0.8, label="controlnet_conditioning_scale")
-                review_steps_input = gr.Slider(0, 150, value=20,
-                    label="number of diffusion steps")
-                review_cfg_input = gr.Slider(0,30,value=3.5,label="cfg scale")
-                index = gr.Slider(0, 1000, value=00,
-                    label="index")
-
-                
-                review_inputs = [
-                    review_data_dir,
-                    review_prompt_input,
-                    review_negative_prompt_input,
-                    review_conditioning_scale_input,
-                    review_steps_input,
-                    review_cfg_input,
-                    index
-                ]
-
 
             with gr.Column():
 
@@ -371,7 +293,6 @@ with gr.Blocks() as demo:
         with gr.Row():
 
             load_next = gr.Button("load next")
-            review_submit = gr.Button("regenerate")
             delete_button = gr.Button("delete")
             load_previous = gr.Button("load previous")
 
@@ -379,9 +300,7 @@ with gr.Blocks() as demo:
 
     controlnet_submit.click(generate_image_pair,inputs=controlnet_inputs,outputs=controlnet_output)
     batch_submit.click(generate_batch,inputs=batch_inputs,outputs=controlnet_output)
-
-    review_submit.click(regenerate_pair,inputs=review_inputs,outputs=review_output)
-    delete_button.click(delete_pair,inputs=[review_data_dir,index],outputs=review_output)
+    delete_button.click(delete_pair,inputs=review_data_dir,outputs=review_output)
     load_next.click(load_next_img,inputs=review_data_dir,outputs=review_output)
     load_previous.click(load_previous_img,inputs=review_data_dir,outputs=review_output)
 
